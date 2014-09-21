@@ -50,7 +50,7 @@ barplot(summary(pml$classe))
 ```
 
 It is a classification problem and since it has more than 2 levels, we can't use logical regression.  
-Instead we'll use a tree based classification algorithm. 
+Instead we'll use a random forest based classification algorithm. 
 
 # Cleaning the data
 1- There are a lot NA columns in the final prediction test data, we'll remove those columns since they don't help
@@ -100,7 +100,7 @@ predTesting<- predict(rf, testing[,-54])
 ```
 
 # Accuracy
-We'll now test the accuracy of our predictions against the actual data to determine $in-sample$ and $out-of-sample$ error rates
+We'll now test the accuracy of our predictions against the actual data to determine in-sample and out-of-sample error rates
 
 ```{r}
 # how well did we do?
