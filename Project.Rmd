@@ -1,0 +1,122 @@
+---
+title: "Project"
+output: html_document
+---
+```{r echo=FALSE}
+library(knitr)
+opts_chunk$set(warning=FALSE, cache=TRUE)
+
+library(RANN)
+library(caret)
+library(rpart)
+library(randomForest)
+
+```
+
+# Summary
+Using the weight lifting dataset from http://groupware.les.inf.puc-rio.br (ref: Qualitative Activity Recognition of Weight Lifting Exercises), we analyzed 6 individuals conducting various exercises. Using a random forest based prediction algorithm, we can predict with 99% accuracy if they are doing the exercise the right way, or if not, the type of mistake they are making.
+
+# Getting data
+Original testing (cross validation) data is not enough.  
+We have decided to use training set only and ignore the testing data
+
+```{r}
+# Download and read the training set
+# but skip it if it already exists
+#setwd("/Users/daghan/Dropbox (Personal)/personal/Hacking/Coursera/Data Science/Practical Machine Learning/Project")
+setwd("/Users/daghan/Hacking/Coursera/Data Science/Practical Machine Learning/Project")
+if (!file.exists("./pml-training.csv")){
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "./pml-training.csv", method="curl")
+} else {
+    print("skipping download, training file exists already")
+}
+
+if (!file.exists("./pml-testing.csv")){
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "./pml-testing.csv", method="curl")
+} else {
+    print("skipping download, testing file exists already")
+}   
+
+pml <- read.csv("pml-training.csv")
+testing_coursera <- read.csv("pml-testing.csv")
+```
+
+# Exploratory data analysis
+The outcome (pml$classe) is a factor variable with 5 possible outcomes
+
+```{r}
+summary(pml$classe)
+barplot(summary(pml$classe))
+```
+
+It is a classification problem and since it has more than 2 levels, we can't use logical regression.  
+Instead we'll use a tree based classification algorithm. 
+
+# Cleaning the data
+1- There are a lot NA columns in the final prediction test data, we'll remove those columns since they don't help
+2- There are few columns like "X" which denotes sample number that we need to remove
+2- We'll get rid of the near zero variance features
+3- We'll impute the remaining NAs
+
+```{r}
+# there are a ton of NAs in the final testing data
+naCols <- sapply(testing_coursera, function(x)all(is.na(x)))
+pml1<- pml[,naCols == FALSE]
+
+pml2 <- pml1[,c(-1,-2,-3,-4, -5)]
+
+# getting rid of the near zero variance values
+nzv <- nearZeroVar(pml2, saveMetrics=TRUE)
+pml3 <- pml2[, nzv$nzv==FALSE]
+
+# reduced these many columns
+ (dim(pml) - dim(pml3))[2]
+```
+
+# Splicing the data to training and testing sets
+There wasn't enough testing examples in the original test set (only 20 unique values, we typically need 25% ~ 40%).  We have decided to split the training set to training(75%) and testing (25%)
+```{r}
+# split to training and test
+inTrain = createDataPartition(pml3$classe, p = 3/4)[[1]]
+training = pml3[ inTrain,]
+testing = pml3[-inTrain,] 
+training$classe <- as.factor(training$classe)
+testing$classe <- as.factor(testing$classe)
+```
+
+# Training the model
+We can have an additional preprocessing step, where we reduce the input data to its principal components, using PCA, but for now we'll skip it to see what accuracy we get with the base line data.
+```{r}
+# now we can train a randomForest based classifier 
+rf <- randomForest(training[,-54], training$classe, ntree = 300)
+```
+
+# Prediction
+We'll use the model we have trained to predict the outcome for both the training and the testing sets
+```{r}
+# let's get a prediction on the testing set using the model
+predTraining <- predict(rf, training[,-54])
+predTesting<- predict(rf, testing[,-54])
+```
+
+# Accuracy
+We'll now test the accuracy of our predictions against the actual data to determine $in-sample$ and $out-of-sample$ error rates
+
+```{r}
+# how well did we do?
+cmTraining <- confusionMatrix(predTraining, training$classe)  
+cmTesting <- confusionMatrix(predTesting, testing$classe)  
+cmTesting$table
+```
+
+## In-sample error
+```{r}
+cmTraining$overall  
+```
+
+## Out-of-sample error
+```{r}
+cmTesting$overall  
+```
+# Conclusion
+We are 99.78% accurate.
